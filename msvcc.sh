@@ -73,6 +73,7 @@ do
       shift 1
     ;;
     -m32)
+      args="$args --target=x86-pc-windows-msvc"
       shift 1
     ;;
     -m64)
@@ -86,12 +87,14 @@ do
       shift 1
     ;;
     -marm64)
+      args="$args --target=arm64-pc-windows-msvc"
       ml='armasm64'
       safeseh=
       shift 1
     ;;
     -clang-cl)
       cl="clang-cl"
+      ml="llvm-ml"
       shift 1
     ;;
     -O0)
