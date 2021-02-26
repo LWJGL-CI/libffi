@@ -1,0 +1,255 @@
+name: LWJGL Build
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  S3_PARAMS: --cache-control "public,must-revalidate,proxy-revalidate,max-age=0"
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    container:
+      image: centos:7
+    strategy:
+      fail-fast: false
+      matrix:
+        ARCH: [x64]
+        include:
+          - ARCH: x64
+            HOST: x86_64-pc-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Upgrade git
+        run: |
+          sed -i \
+            -e 's/^mirrorlist/#mirrorlist/' \
+            -e 's/^#baseurl/baseurl/' \
+            -e 's/mirror\.centos\.org/vault.centos.org/' \
+            /etc/yum.repos.d/*.repo
+          yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+          yum -y install git
+      - name: Clone repository
+        run: git clone --depth 3 https://github.com/${{ github.repository }}.git .
+      - name: Configure yum
+        run: |
+          yum -y install epel-release
+          yum -y update
+      - name: Install build dependencies
+        run: |
+          yum -y install centos-release-scl
+          sed -i \
+            -e 's/^mirrorlist/#mirrorlist/' \
+            -e 's/^#baseurl/baseurl/' \
+            -e 's/^# baseurl/baseurl/' \
+            -e 's/mirror\.centos\.org/vault.centos.org/' \
+            /etc/yum.repos.d/CentOS-SCLo-scl*.repo
+          yum -y install devtoolset-11-gcc-c++
+          yum -y install awscli
+      - name: Install libffi dependencies
+        run: yum -y install autoconf automake libtool texinfo
+      - name: Install autoconf 2.72
+        run: |
+          source scl_source enable devtoolset-11 || true
+          curl -L https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.gz | tar -xz
+          (cd autoconf-2.72; ./configure; make; make install)
+      - name: Configure build
+        run: |
+          source scl_source enable devtoolset-11 || true
+          ./autogen.sh
+          ./configure --disable-shared --with-pic --host=${{matrix.HOST}} || (cat */config.log ; exit 1)
+      - name: Build
+        run: |
+          source scl_source enable devtoolset-11 || true
+          make
+      - name: Upload artifact
+        run: aws s3 cp ${{matrix.HOST}}/.libs/libffi_convenience.a s3://lwjgl-build/nightly/linux/${{matrix.ARCH}}/core/libffi.a ${{env.S3_PARAMS}}
+
+  linux-cross:
+    name: Linux Cross
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ARCH: [arm32, arm64, mips64, ppc64le, riscv64]
+        include:
+          # -----
+          - ARCH: arm32
+            CROSS_ARCH: armhf
+            TRIPLET: arm-linux-gnueabihf
+            HOST: arm-unknown-linux-gnueabihf
+          # -----
+          - ARCH: arm64
+            CROSS_ARCH: arm64
+            TRIPLET: aarch64-linux-gnu
+            HOST: aarch64-unknown-linux-gnu
+          # -----
+          - ARCH: mips64
+            CROSS_ARCH: mips64el
+            TRIPLET: mips64el-linux-gnuabi64
+            HOST: mips64el-unknown-linux-gnu
+          # ----
+          - ARCH: ppc64le
+            CROSS_ARCH: ppc64el
+            TRIPLET: powerpc64le-linux-gnu
+            HOST: powerpc64le-unknown-linux-gnu
+          # -----
+          - ARCH: riscv64
+            CROSS_ARCH: riscv64
+            TRIPLET: riscv64-linux-gnu
+            HOST: riscv64-unknown-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        run: |
+          DEBIAN_FRONTEND=noninteractive sudo apt-get -yq update
+          DEBIAN_FRONTEND=noninteractive sudo apt-get -yq install m4 make automake libtool texinfo gcc-${{matrix.TRIPLET}} libc6-dev-${{matrix.CROSS_ARCH}}-cross
+      - name: Install autoconf 2.72
+        run: |
+          curl -L https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.gz | tar -xz
+          (cd autoconf-2.72; ./configure; make; sudo make install)
+      - name: Configure build
+        run: |
+          PATH=$HOME/i/bin:$PATH ./autogen.sh
+          ./configure --disable-shared --with-pic CC=${{matrix.TRIPLET}}-gcc --host=${{matrix.HOST}} || (cat */config.log ; exit 1)
+      - name: Build
+        run: make
+      - name: Upload artifact
+        run: aws s3 cp ${{matrix.HOST}}/.libs/libffi_convenience.a s3://lwjgl-build/nightly/linux/${{matrix.ARCH}}/core/libffi.a ${{env.S3_PARAMS}}
+
+  freebsd-cross:
+    name: FreeBSD Cross
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Build
+        uses: cross-platform-actions/action@v0.28.0
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.4'
+          memory: 4G
+          shell: bash
+          run: |
+            sudo pkg install -y m4 gmake automake libtool texinfo
+            ./autogen.sh
+            ./configure --disable-shared --with-pic || (cat */config.log ; exit 1)
+            make
+      - name: Upload artifact
+        run: aws s3 cp x86_64-unknown-freebsd13.4/.libs/libffi_convenience.a s3://lwjgl-build/nightly/freebsd/x64/core/libffi.a ${{env.S3_PARAMS}}
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ARCH: [x64, arm64]
+        include:
+          - ARCH: x64
+            DARWIN: 15
+            CC: MACOSX_DEPLOYMENT_TARGET=10.11
+            CFLAGS: -target x64-apple-darwin -arch x86_64 -mmacosx-version-min=10.11
+            LDFLAGS: -target x64-apple-darwin -arch x86_64 -mmacosx-version-min=10.11
+            HOST: x86_64
+          - ARCH: arm64
+            DARWIN: 20
+            CC: MACOSX_DEPLOYMENT_TARGET=11.0
+            CFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
+            LDFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
+            HOST: aarch64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        run: brew install automake libtool texinfo
+      - name: Configure build
+        run: |
+          ./autogen.sh
+          ${{matrix.CC}} ./configure --disable-shared CC=clang CFLAGS='${{matrix.CFLAGS}}' LDFLAGS='${{matrix.LDFLAGS}}' --target ${{matrix.ARCH}}-apple-darwin${{matrix.DARWIN}} --host=${{matrix.HOST}}-apple-darwin${{matrix.DARWIN}} || (cat */config.log ; exit 1)
+      - name: Build
+        run: ${{matrix.CC}} make all
+      - name: Upload artifact
+        run: aws s3 cp ${{matrix.HOST}}-apple-darwin${{matrix.DARWIN}}/.libs/libffi_convenience.a s3://lwjgl-build/nightly/macosx/${{matrix.ARCH}}/core/libffi.a ${{env.S3_PARAMS}}
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ARCH: [x86, x64, arm64]
+        include:
+          # -----
+          - ARCH: x86
+            SOURCE_ARCH: x86
+            MSVC_ARCH: amd64_x86
+            MSVC_SH: -m32
+            HOST: i686-pc-cygwin
+          # -----
+          - ARCH: x64
+            SOURCE_ARCH: x86
+            MSVC_ARCH: amd64
+            MSVC_SH: -m64
+            HOST: x86_64-pc-cygwin
+          # -----
+          - ARCH: arm64
+            SOURCE_ARCH: aarch64
+            MSVC_ARCH: amd64_arm64
+            MSVC_SH: -marm64
+            HOST: aarch64-pc-cygwin
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        uses: egor-tensin/setup-cygwin@v4
+        with:
+          platform: x64
+          install-dir: C:\cygwin
+          packages: wget autoconf automake libtool
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.MSVC_ARCH }}
+      - name: Build
+        run: |
+          cd $(cygpath $RUNNER_WORKSPACE)/libffi
+          ./autogen.sh
+          ./configure \
+            CC="$PWD/msvcc.sh -DUSE_STATIC_RTL ${{matrix.MSVC_SH}}" \
+            CXX="$PWD/msvcc.sh -DUSE_STATIC_RTL ${{matrix.MSVC_SH}}" \
+            LD='link' \
+            CPP='cl -nologo -EP' \
+            CXXCPP='cl -nologo -EP' \
+            CPPFLAGS='-DFFI_BUILDING_DLL -DUSE_STATIC_RTL' \
+            NM='dumpbin -symbols' \
+            STRIP=':' \
+            CONFIGURE_OPTIONS=--disable-shared \
+            --host=${{matrix.HOST}} \
+            || (cat */config.log ; exit 1)
+          cp src/${{matrix.SOURCE_ARCH}}/ffitarget.h include
+          make all
+        shell: C:\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
+      - name: Upload artifact
+        run: aws s3 cp ${{matrix.HOST}}\.libs\libffi_convenience.lib s3://lwjgl-build/nightly/windows/${{matrix.ARCH}}/core/libffi.lib ${{env.S3_PARAMS}}
