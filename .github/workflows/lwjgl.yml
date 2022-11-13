@@ -31,6 +31,10 @@ jobs:
             PACKAGES: gcc-aarch64-linux-gnu libc6-dev-arm64-cross
             GCC: aarch64-linux-gnu-gcc
             HOST: aarch64-unknown-linux-gnu
+          - ARCH: ppc64el
+            PACKAGES: gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
+            GCC: powerpc64le-linux-gnu-gcc
+            HOST: powerpc64le-unknown-linux-gnu
           - ARCH: mips64
             PACKAGES: gcc-mips64el-linux-gnuabi64 libc6-dev-mips64el-cross
             GCC: mips64el-linux-gnuabi64-gcc
