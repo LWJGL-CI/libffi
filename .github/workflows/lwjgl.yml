@@ -19,10 +19,10 @@ jobs:
       matrix:
         ARCH: [powerpc64le]
         include:
-          - ARCH: x64
-            PACKAGES:
-            GCC: gcc
-            HOST: x86_64-pc-linux-gnu
+#           - ARCH: x64
+#             PACKAGES:
+#             GCC: gcc
+#             HOST: x86_64-pc-linux-gnu
 #           - ARCH: arm32
 #             PACKAGES: gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
 #             GCC: arm-linux-gnueabihf-gcc
