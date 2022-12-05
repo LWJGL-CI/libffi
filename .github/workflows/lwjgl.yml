@@ -23,18 +23,22 @@ jobs:
             PACKAGES:
             GCC: gcc
             HOST: x86_64-pc-linux-gnu
-          - ARCH: arm32
-            PACKAGES: gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
-            GCC: arm-linux-gnueabihf-gcc
-            HOST: arm-unknown-linux-gnueabihf
-          - ARCH: arm64
-            PACKAGES: gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-            GCC: aarch64-linux-gnu-gcc
-            HOST: aarch64-unknown-linux-gnu
-          - ARCH: mips64
-            PACKAGES: gcc-mips64el-linux-gnuabi64 libc6-dev-mips64el-cross
-            GCC: mips64el-linux-gnuabi64-gcc
-            HOST: mips64el-unknown-linux-gnu
+#           - ARCH: arm32
+#             PACKAGES: gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+#             GCC: arm-linux-gnueabihf-gcc
+#             HOST: arm-unknown-linux-gnueabihf
+#           - ARCH: arm64
+#             PACKAGES: gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+#             GCC: aarch64-linux-gnu-gcc
+#             HOST: aarch64-unknown-linux-gnu
+#           - ARCH: mips64
+#             PACKAGES: gcc-mips64el-linux-gnuabi64 libc6-dev-mips64el-cross
+#             GCC: mips64el-linux-gnuabi64-gcc
+#             HOST: mips64el-unknown-linux-gnu
+          - ARCH: powerpc64le
+            PACKAGES: gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
+            GCC: powerpc64el-linux-gnuabi64-gcc
+            HOST: powerpc64le-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v3
         with:
@@ -54,95 +58,95 @@ jobs:
         name: Configure build
       - run: make
         name: Build
-      - run: aws s3 cp ${{matrix.HOST}}/.libs/libffi_convenience.a s3://lwjgl-build/nightly/linux/${{matrix.ARCH}}/core/libffi.a $S3_PARAMS
+      - run: aws s3 cp ${{matrix.HOST}}/.libs/libffi_convenience.a s3://darren-lwjgl-build/nightly/linux/${{matrix.ARCH}}/core/libffi.a $S3_PARAMS
         name: Upload artifact
 
-  macos:
-    name: macOS
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        ARCH: [x64, arm64]
-        include:
-          - ARCH: x64
-            CC:
-            CFLAGS: -mmacosx-version-min=10.9
-            LDFLAGS: -mmacosx-version-min=10.9
-            HOST: x86_64
-          - ARCH: arm64
-            CC: SDKROOT=$(xcrun -sdk macosx11.1 --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=11.0
-            CFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
-            LDFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
-            HOST: aarch64
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
-      - run: brew install automake
-        name: Install dependencies
-      - run: |
-          ./autogen.sh
-          ${{matrix.CC}} ./configure --disable-shared CC=clang CFLAGS='${{matrix.CFLAGS}}' LDFLAGS='${{matrix.LDFLAGS}}' --target ${{matrix.ARCH}}-apple-darwin20 --host=${{matrix.HOST}}-apple-darwin20 || cat */config.log
-        name: Configure build
-      - run: ${{matrix.CC}} make
-        name: Build
-      - run: aws s3 cp ${{matrix.HOST}}-apple-darwin20/.libs/libffi_convenience.a s3://lwjgl-build/nightly/macosx/${{matrix.ARCH}}/core/libffi.a $S3_PARAMS
-        name: Upload artifact
+#   macos:
+#     name: macOS
+#     runs-on: macos-latest
+#     strategy:
+#       matrix:
+#         ARCH: [x64, arm64]
+#         include:
+#           - ARCH: x64
+#             CC:
+#             CFLAGS: -mmacosx-version-min=10.9
+#             LDFLAGS: -mmacosx-version-min=10.9
+#             HOST: x86_64
+#           - ARCH: arm64
+#             CC: SDKROOT=$(xcrun -sdk macosx11.1 --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=11.0
+#             CFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
+#             LDFLAGS: -target aarch64-apple-darwin -arch arm64 -mmacosx-version-min=11.0
+#             HOST: aarch64
+#     steps:
+#       - uses: actions/checkout@v3
+#         with:
+#           fetch-depth: 1
+#       - run: brew install automake
+#         name: Install dependencies
+#       - run: |
+#           ./autogen.sh
+#           ${{matrix.CC}} ./configure --disable-shared CC=clang CFLAGS='${{matrix.CFLAGS}}' LDFLAGS='${{matrix.LDFLAGS}}' --target ${{matrix.ARCH}}-apple-darwin20 --host=${{matrix.HOST}}-apple-darwin20 || cat */config.log
+#         name: Configure build
+#       - run: ${{matrix.CC}} make
+#         name: Build
+#       - run: aws s3 cp ${{matrix.HOST}}-apple-darwin20/.libs/libffi_convenience.a s3://lwjgl-build/nightly/macosx/${{matrix.ARCH}}/core/libffi.a $S3_PARAMS
+#         name: Upload artifact
 
-  windows:
-    name: Windows
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        ARCH: [x86, x64, arm64]
-        include:
-          - ARCH: x86
-            SOURCE_ARCH: x86
-            MSVC_ARCH: amd64_x86
-            MSVC_SH: msvcc.sh
-            HOST: i686-pc-cygwin
-          - ARCH: x64
-            SOURCE_ARCH: x86
-            MSVC_ARCH: amd64
-            MSVC_SH: msvcc.sh -m64
-            HOST: x86_64-pc-cygwin
-          - ARCH: arm64
-            SOURCE_ARCH: aarch64
-            MSVC_ARCH: amd64_arm64
-            MSVC_SH: msvcc.sh -marm64
-            HOST: aarch64-pc-cygwin
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
-      - uses: egor-tensin/setup-cygwin@v3
-        with:
-          platform: x64
-          install-dir: C:\cygwin
-          packages: wget autoconf automake libtool
-        name: Install dependencies
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.MSVC_ARCH }}
-      - run: |
-          cd $(cygpath $RUNNER_WORKSPACE)/libffi
-          ./autogen.sh
-          ./configure \
-            CC="$PWD/${{matrix.MSVC_SH}}" \
-            CXX="$PWD/${{matrix.MSVC_SH}}" \
-            LD='link' \
-            CPP='cl -nologo -EP' \
-            CXXCPP='cl -nologo -EP' \
-            CPPFLAGS='-DFFI_BUILDING_DLL -DUSE_STATIC_RTL' \
-            NM='dumpbin -symbols' \
-            STRIP=':' \
-            CONFIGURE_OPTIONS=--disable-shared \
-            --host=${{matrix.HOST}} \
-            || cat */config.log
-          cp src/${{matrix.SOURCE_ARCH}}/ffitarget.h include
-          make
-        shell: C:\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
-        name: Build
-      - run: aws s3 cp ${{matrix.HOST}}\.libs\libffi_convenience.lib s3://lwjgl-build/nightly/windows/${{matrix.ARCH}}/core/libffi.lib %S3_PARAMS%
-        shell: cmd
-        name: Upload artifact
+#   windows:
+#     name: Windows
+#     runs-on: windows-latest
+#     strategy:
+#       matrix:
+#         ARCH: [x86, x64, arm64]
+#         include:
+#           - ARCH: x86
+#             SOURCE_ARCH: x86
+#             MSVC_ARCH: amd64_x86
+#             MSVC_SH: msvcc.sh
+#             HOST: i686-pc-cygwin
+#           - ARCH: x64
+#             SOURCE_ARCH: x86
+#             MSVC_ARCH: amd64
+#             MSVC_SH: msvcc.sh -m64
+#             HOST: x86_64-pc-cygwin
+#           - ARCH: arm64
+#             SOURCE_ARCH: aarch64
+#             MSVC_ARCH: amd64_arm64
+#             MSVC_SH: msvcc.sh -marm64
+#             HOST: aarch64-pc-cygwin
+#     steps:
+#       - uses: actions/checkout@v3
+#         with:
+#           fetch-depth: 1
+#       - uses: egor-tensin/setup-cygwin@v3
+#         with:
+#           platform: x64
+#           install-dir: C:\cygwin
+#           packages: wget autoconf automake libtool
+#         name: Install dependencies
+#       - uses: ilammy/msvc-dev-cmd@v1
+#         with:
+#           arch: ${{ matrix.MSVC_ARCH }}
+#       - run: |
+#           cd $(cygpath $RUNNER_WORKSPACE)/libffi
+#           ./autogen.sh
+#           ./configure \
+#             CC="$PWD/${{matrix.MSVC_SH}}" \
+#             CXX="$PWD/${{matrix.MSVC_SH}}" \
+#             LD='link' \
+#             CPP='cl -nologo -EP' \
+#             CXXCPP='cl -nologo -EP' \
+#             CPPFLAGS='-DFFI_BUILDING_DLL -DUSE_STATIC_RTL' \
+#             NM='dumpbin -symbols' \
+#             STRIP=':' \
+#             CONFIGURE_OPTIONS=--disable-shared \
+#             --host=${{matrix.HOST}} \
+#             || cat */config.log
+#           cp src/${{matrix.SOURCE_ARCH}}/ffitarget.h include
+#           make
+#         shell: C:\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
+#         name: Build
+#       - run: aws s3 cp ${{matrix.HOST}}\.libs\libffi_convenience.lib s3://lwjgl-build/nightly/windows/${{matrix.ARCH}}/core/libffi.lib %S3_PARAMS%
+#         shell: cmd
+#         name: Upload artifact
