@@ -14,10 +14,10 @@ env:
 jobs:
   linux:
     name: Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     strategy:
       matrix:
-        ARCH: [powerpc64le]
+        ARCH: [x64, arm32, arm64, mips64, powerpc64le]
         include:
           - ARCH: x64
             PACKAGES:
