@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-18.04
     strategy:
       matrix:
-        ARCH: [x64, arm32, arm64, mips64]
+        ARCH: [powerpc64le]
         include:
           - ARCH: x64
             PACKAGES:
