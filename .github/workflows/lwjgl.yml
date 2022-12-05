@@ -37,7 +37,7 @@ jobs:
 #             HOST: mips64el-unknown-linux-gnu
           - ARCH: powerpc64le
             PACKAGES: gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
-            GCC: powerpc64el-linux-gnuabi64-gcc
+            GCC: powerpc64le-linux-gnu-gcc
             HOST: powerpc64le-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v3
