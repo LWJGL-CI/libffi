@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ARCH: [arm32, arm64, mips64]
+        ARCH: [arm32, arm64, mips64, ppc64le]
         include:
           - ARCH: arm32
             PACKAGES: gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
@@ -78,6 +78,10 @@ jobs:
             PACKAGES: gcc-mips64el-linux-gnuabi64 libc6-dev-mips64el-cross
             GCC: mips64el-linux-gnuabi64-gcc
             HOST: mips64el-unknown-linux-gnu
+          - ARCH: ppc64le
+            PACKAGES: gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
+            GCC: powerpc64le-linux-gnu-gcc
+            HOST: powerpc64le-unknown-linux-gnu
     steps:
       - run: |
           apt-get -y update
